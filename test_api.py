@@ -56,6 +56,7 @@ def test_get_user(api):
     assert result == character
 
 
+# TODO: find out if there are any constraints for character names
 @pytest.mark.parametrize('name', ['Good_Name', '11111', 'G', '10g'])
 def test_insert_character(api, name):
     insert = api.insert_character(character_template(name))
@@ -90,12 +91,13 @@ def test_invalid_modify_character(api, pop_key):
     name = data["name"]
     data.pop(pop_key)
     modify_result = api.modify_character(name, data)
-    assert modify_result.status_code == 500
+    assert modify_result.status_code == 500  # TODO: ensure that 500 is correct here and request should fail
 
 
 @pytest.mark.dependency(depends=["test_bd_content"])
 def test_delete_existing_character(api):
-    name = random.choice(api.characters)["name"]
+    api.deleted_character = random.choice(api.characters)
+    name = api.deleted_character["name"]
     delete_result = api.delete_character(name)
     get_character = api.get_character(name)
     assert "is deleted" in delete_result.text and "No such name" in get_character.text
@@ -107,6 +109,15 @@ def test_delete_nonexistent_character(api):
     assert "No such name" in delete_result.text
 
 
+@pytest.mark.dependency(depends=["test_delete_existing_character"])
+def test_collection_reset(api):
+    api.insert_character(character_template("to_be_deleted"))
+    api.reset_collection()
+    get_deleted = api.get_character(api.deleted_character["name"])
+    get_added = api.get_character("to_be_deleted")
+    assert json.loads(get_deleted.text)["result"][0] == api.deleted_character and "No such name" in get_added.text
+
+
 @pytest.mark.dependency(depends=["test_bd_content"])
 def test_db_limit(api, db_limit=500):
     characters_needed = db_limit - len(api.characters)
@@ -114,6 +125,3 @@ def test_db_limit(api, db_limit=500):
         api.insert_character(character_template("dummy" + str(i)))
     r = api.insert_character(character_template("failing"))
     assert r.status_code == 400 and json.loads(r.text) == {"error": "Collection can't contain more than 500 items"}
-
-
-
