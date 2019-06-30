@@ -44,11 +44,11 @@ def test_get_characters(api):
 
 
 @pytest.mark.dependency(depends=["test_get_characters"])
-def test_bd_content(api, expected_length=1):
+def test_collection_content(api, expected_length=1):
     assert len(api.characters) >= expected_length
 
 
-@pytest.mark.dependency(depends=["test_bd_content"])
+@pytest.mark.dependency(depends=["test_collection_content"])
 def test_get_user(api):
     character = random.choice(api.characters)
     get_character = api.get_character(character["name"])
@@ -64,6 +64,13 @@ def test_insert_character(api, name):
     assert json.loads(insert.text)["result"] == json.loads(get_character.text)["result"][0]
 
 
+@pytest.mark.dependency(depends=["test_collection_content"])
+def test_insert_duplicate_character(api):
+    name = random.choice(api.characters)["name"]
+    insert = api.insert_character(character_template(name))
+    assert "{} is already exists".format(name) in insert.text
+
+
 @pytest.mark.parametrize('pop_key', character_template().keys())
 def test_insert_broken_character(api, pop_key, name="failanyway"):
     insert = api.insert_character(character_template(name, pop_key))
@@ -72,7 +79,7 @@ def test_insert_broken_character(api, pop_key, name="failanyway"):
     assert json.loads(get_character.text) == {"result": "No such name"}
 
 
-@pytest.mark.dependency(depends=["test_bd_content"])
+@pytest.mark.dependency(depends=["test_collection_content"])
 @pytest.mark.parametrize('change_key', character_template(pop_key="name").keys())
 def test_modify_character(api, change_key):
     data = random.choice(api.characters)
@@ -84,7 +91,7 @@ def test_modify_character(api, change_key):
     assert json.loads(get_character.text)["result"][0] == data
 
 
-@pytest.mark.dependency(depends=["test_bd_content"])
+@pytest.mark.dependency(depends=["test_collection_content"])
 @pytest.mark.parametrize('pop_key', character_template().keys())
 def test_invalid_modify_character(api, pop_key):
     data = random.choice(api.characters)
@@ -94,7 +101,7 @@ def test_invalid_modify_character(api, pop_key):
     assert modify_result.status_code == 500  # TODO: ensure that 500 is correct here and request should fail
 
 
-@pytest.mark.dependency(depends=["test_bd_content"])
+@pytest.mark.dependency(depends=["test_collection_content"])
 def test_delete_existing_character(api):
     api.deleted_character = random.choice(api.characters)
     name = api.deleted_character["name"]
@@ -118,7 +125,7 @@ def test_collection_reset(api):
     assert json.loads(get_deleted.text)["result"][0] == api.deleted_character and "No such name" in get_added.text
 
 
-@pytest.mark.dependency(depends=["test_bd_content"])
+@pytest.mark.dependency(depends=["test_collection_content"])
 def test_db_limit(api, db_limit=500):
     characters_needed = db_limit - len(api.characters)
     for i in range(characters_needed):
